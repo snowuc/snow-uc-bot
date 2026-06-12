@@ -1,36 +1,20 @@
 import telebot
-import os
-from flask import Flask
-from threading import Thread
 from telebot import types
+import os
 
-# Прямое указание токена для запуска в Pydroid
 TOKEN = os.getenv("BOT_TOKEN")
-
 bot = telebot.TeleBot(TOKEN)
-app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "Бот работает!"
-
-def run_server():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
-
-# --- ЛОГИКА БОТА ---
 @bot.message_handler(commands=['start'])
 def start(message):
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("🛒 Купить UC", callback_data="buy_menu"))
-    bot.send_message(message.chat.id, "<b>✨ Добро пожаловать в SNOW UC SHOP!</b>", 
-                     reply_markup=markup, parse_mode="HTML")
+    bot.send_message(message.chat.id, "👋 Привет! Добро пожаловать в SNOW UC SHOP!", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     chat_id = call.message.chat.id
     
-    # Меню выбора паков
     if call.data == "buy_menu":
         markup = types.InlineKeyboardMarkup(row_width=2)
         packs = [
@@ -52,10 +36,29 @@ def callback_query(call):
         bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id,
                               text="💎 Выберите пак для покупки:", reply_markup=markup)
     
-    # Ответ при выборе любого пака
     elif call.data.startswith("buy_"):
-        bot.send_message(chat_id, "💳 Для оплаты переведите сумму на карту: <code>5168 7500 0000 0000</code>", parse_mode="HTML")
+        # Твоя ссылка на фото
+        photo_url = "https://raw.githubusercontent.com/snowuc/snow-uc-bot/main/IMG_20260612_220910_235.jpg"
         
-if __name__ == '__main__':
-    Thread(target=run_server).start()
-    bot.polling(none_stop=True)
+        caption_text = (
+            "✅ <b>Пак успешно выбран!</b>\n\n"
+            "💳 Для оплаты переведите сумму на карту:\n"
+            "<code>5168 7500 0000 0000</code>\n\n"
+            "⚠️ <b>ОЧЕНЬ ВАЖНО:</b>\n"
+            "Напишите ваш Игровой ID (должен начинаться на цифру <b>5</b>) в ответ на это сообщение.\n\n"
+            "<i>UC будут зачислены после проверки оплаты.</i>"
+        )
+        
+        bot.delete_message(chat_id, call.message.message_id)
+        bot.send_photo(chat_id, photo_url, caption=caption_text, parse_mode="HTML")
+
+# Логика принятия ID от пользователя
+@bot.message_handler(func=lambda message: True)
+def handle_id(message):
+    if message.text.startswith('5'):
+        bot.reply_to(message, "✅ Спасибо! Ваш ID принят. Ожидайте зачисления.")
+        print(f"Новый заказ! ID: {message.text}")
+    else:
+        bot.reply_to(message, "❌ Ошибка: Ваш Игровой ID должен начинаться на цифру 5. Попробуйте еще раз.")
+
+bot.polling()
