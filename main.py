@@ -9,7 +9,6 @@ ADMIN_ID = "7676835960"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Храним только ID пользователя, чтобы знать, что он в процессе заказа
 waiting_for_id = {}
 
 @app.route('/')
@@ -29,7 +28,9 @@ def start(message):
 def callback_query(call):
     chat_id = call.message.chat.id
     
-    # 1. Меню паков
+    # Обязательный ответ серверу Telegram, чтобы кнопка не зависала
+    bot.answer_callback_query(call.id)
+    
     if call.data == "buy_menu":
         markup = types.InlineKeyboardMarkup(row_width=2)
         packs = [("60 UC", "60"), ("120 UC", "120"), ("325 UC", "325"), ("660 UC", "660"), 
@@ -37,15 +38,15 @@ def callback_query(call):
         markup.add(*[types.InlineKeyboardButton(p[0], callback_data=f"pack_{p[1]}") for p in packs])
         bot.edit_message_text("💎 Выберите пак:", chat_id, call.message.message_id, reply_markup=markup)
     
-    # 2. Выбран конкретный пак (сохраняем выбор в данные кнопки)
     elif call.data.startswith("pack_"):
         pack_value = call.data.split("_")[1]
         waiting_for_id[chat_id] = {"pack": pack_value}
         bot.edit_message_text(f"✅ Выбрано: {pack_value} UC. Введите ID (начинается на 5):", chat_id, call.message.message_id)
 
-    # 3. Подтверждение
     elif call.data == "confirm":
-        bot.edit_message_text("💳 Карта: <code>5168 7500 0000 0000</code>.\n\n📸 Пришлите скриншот чека.", chat_id, call.message.message_id, parse_mode="HTML")
+        # ИСПРАВЛЕНИЕ: Удаляем фото и присылаем текст отдельным сообщением
+        bot.delete_message(chat_id, call.message.message_id)
+        bot.send_message(chat_id, "💳 Карта: <code>5168 7500 0000 0000</code>.\n\n📸 Пришлите скриншот чека.", parse_mode="HTML")
 
 @bot.message_handler(func=lambda m: m.chat.id in waiting_for_id and "id" not in waiting_for_id[m.chat.id])
 def handle_id(message):
@@ -54,7 +55,6 @@ def handle_id(message):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("✅ Подтвердить оплату", callback_data="confirm"))
         
-        # Отправляем фото и кнопку
         try:
             bot.send_photo(message.chat.id, "https://raw.githubusercontent.com/snowuc/snow-uc-bot/main/IMG_20260612_220910_235.jpg", 
                            caption=f"Ваш ID: {message.text}. Верно?", reply_markup=markup)
