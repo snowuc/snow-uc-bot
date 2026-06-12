@@ -6,7 +6,7 @@ from threading import Thread
 
 TOKEN = '8769000983:AAGW8ulr7xGM4Sd_M7KoqGJlrU3RzgLfo4E'
 ADMIN_ID = 7676835960
-WEB_APP_URL = 'https://твое-имя.onrender.com/index.html'
+WEB_APP_URL = 'https://snow-uc-bot.onrender.com/index.html'
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
