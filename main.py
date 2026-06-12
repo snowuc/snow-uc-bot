@@ -27,8 +27,6 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     chat_id = call.message.chat.id
-    
-    # Обязательный ответ серверу Telegram, чтобы кнопка не зависала
     bot.answer_callback_query(call.id)
     
     if call.data == "buy_menu":
@@ -44,9 +42,23 @@ def callback_query(call):
         bot.edit_message_text(f"✅ Выбрано: {pack_value} UC. Введите ID (начинается на 5):", chat_id, call.message.message_id)
 
     elif call.data == "confirm":
-        # ИСПРАВЛЕНИЕ: Удаляем фото и присылаем текст отдельным сообщением
         bot.delete_message(chat_id, call.message.message_id)
         bot.send_message(chat_id, "💳 Карта: <code>5168 7500 0000 0000</code>.\n\n📸 Пришлите скриншот чека.", parse_mode="HTML")
+
+    # --- НОВАЯ ЛОГИКА ДЛЯ АДМИНА ---
+    elif call.data.startswith("done_"):
+        # Проверяем, что нажал именно ты (админ)
+        if str(chat_id) == ADMIN_ID: 
+            client_id = call.data.split("_")[1] # Достаем ID чата клиента из кнопки
+            try:
+                # Отправляем сообщение клиенту
+                bot.send_message(client_id, "✅ Ваш заказ успешно выполнен! UC начислены на ваш аккаунт. Спасибо за покупку!")
+                # Меняем текст под чеком у тебя, убирая кнопку
+                bot.edit_message_caption(caption=call.message.caption + "\n\n✅ СТАТУС: ВЫПОЛНЕНО", 
+                                         chat_id=chat_id, 
+                                         message_id=call.message.message_id)
+            except Exception as e:
+                bot.send_message(ADMIN_ID, f"❌ Ошибка отправки пользователю. Возможно, он заблокировал бота.")
 
 @bot.message_handler(func=lambda m: m.chat.id in waiting_for_id and "id" not in waiting_for_id[m.chat.id])
 def handle_id(message):
@@ -67,8 +79,15 @@ def handle_id(message):
 def handle_photo(message):
     if message.chat.id in waiting_for_id and "id" in waiting_for_id[message.chat.id]:
         data = waiting_for_id[message.chat.id]
+        
+        # --- НОВАЯ КНОПКА ДЛЯ АДМИНА ---
+        admin_markup = types.InlineKeyboardMarkup()
+        # В кнопку "вшиваем" chat_id клиента, чтобы бот знал, кому отправлять ответ
+        admin_markup.add(types.InlineKeyboardButton("✅ Заказ выполнен", callback_data=f"done_{message.chat.id}"))
+        
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
-                       caption=f"🔔 НОВЫЙ ЗАКАЗ!\nКлиент: @{message.from_user.username or message.chat.id}\nID: {data['id']}\nПак: {data['pack']} UC")
+                       caption=f"🔔 НОВЫЙ ЗАКАЗ!\nКлиент: @{message.from_user.username or message.chat.id}\nID: {data['id']}\nПак: {data['pack']} UC",
+                       reply_markup=admin_markup)
         bot.reply_to(message, "✅ Чек получен! Ожидайте зачисления.")
         del waiting_for_id[message.chat.id]
 
