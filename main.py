@@ -61,4 +61,8 @@ def handle_id(message):
     else:
         bot.reply_to(message, "❌ Ошибка: Ваш Игровой ID должен начинаться на цифру 5. Попробуйте еще раз.")
 
-bot.polling()
+if __name__ == '__main__':
+    # Запускаем Flask сервер в отдельном потоке
+    Thread(target=run_server).start()
+    # Запускаем бота в бесконечном цикле
+    bot.infinity_polling()
