@@ -4,14 +4,11 @@ from flask import Flask
 from threading import Thread
 
 app = Flask('')
-
 @app.route('/')
 def home():
     return "Бот активен!"
-
 def run():
     app.run(host='0.0.0.0', port=8080)
-
 def keep_alive():
     t = Thread(target=run)
     t.start()
@@ -21,17 +18,23 @@ ADMIN_ID = 7676835960
 
 bot = telebot.TeleBot(TOKEN)
 
+# Функция меню
+def main_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("📋 Прайс-лист"), types.KeyboardButton("💰 Купить UC"))
+    return markup
+
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.send_message(message.chat.id, "Привет! Добро пожаловать в SNOW UC SHOP ❄️")
+    bot.send_message(message.chat.id, "Привет! Добро пожаловать в SNOW UC SHOP ❄️", reply_markup=main_menu())
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
-    if message.text == "💰 Купить UC":
+    if message.text == "📋 Прайс-лист":
+        bot.send_message(message.chat.id, "Прайс-лист нашего магазина...")
+    elif message.text == "💰 Купить UC":
         msg = bot.send_message(message.chat.id, "Введите ваш PUBG ID и кол-во UC:")
         bot.register_next_step_handler(msg, process_order)
-    else:
-        bot.send_message(message.chat.id, "Нажмите кнопку ниже", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add(types.KeyboardButton("💰 Купить UC")))
 
 def process_order(message):
     bot.send_message(message.chat.id, "✅ Заказ принят!")
