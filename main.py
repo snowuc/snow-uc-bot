@@ -5,7 +5,7 @@ from threading import Thread
 from telebot import types
 
 # Прямое указание токена для запуска в Pydroid
-TOKEN = '8986699759:AAHc-RqjhrDM9kDoQmE2qT5ONnOWZ_fSSLk'
+TOKEN = os.getenv("BOT_TOKEN")
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
