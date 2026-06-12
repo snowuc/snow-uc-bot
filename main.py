@@ -1,22 +1,24 @@
 import telebot
+from telebot import types
 import os
 from flask import Flask
 from threading import Thread
-from telebot import types
 
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = "7676835960"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# --- БЛОК 1: Web-сервер для Render ---
+# Хранилище временных данных
+user_data = {}
+
 @app.route('/')
-def home(): return "Бот активен"
+def home(): return "Бот работает!"
 
-def run():
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+def run_server():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
-# --- БЛОК 2: Меню и логика ---
 @bot.message_handler(commands=['start'])
 def start(message):
     markup = types.InlineKeyboardMarkup()
@@ -24,27 +26,13 @@ def start(message):
     bot.send_message(message.chat.id, "👋 Привет! Добро пожаловать в SNOW UC SHOP!", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: True)
-def callback(call):
+def callback_query(call):
+    chat_id = call.message.chat.id
     if call.data == "buy_menu":
         markup = types.InlineKeyboardMarkup(row_width=2)
-        # Паки
-        packs = [("60 UC", "buy_60"), ("120 UC", "buy_120"), ("325 UC", "buy_325"), ("660 UC", "buy_660")]
-        markup.add(*[types.InlineKeyboardButton(p[0], callback_data=p[1]) for p in packs])
-        bot.edit_message_text("💎 Выберите пак:", call.message.chat.id, call.message.message_id, reply_markup=markup)
-    
-    elif call.data.startswith("buy_"):
-        bot.edit_message_text("✅ Пак выбран. Напишите ваш ID (начинается на 5):", call.message.chat.id, call.message.message_id)
-
-# --- БЛОК 3: ID и Фото ---
-@bot.message_handler(func=lambda message: message.text.startswith('5'))
-def handle_id(message):
-    bot.reply_to(message, "✅ ID принят! Отправьте скриншот чека.")
-
-@bot.message_handler(content_types=['photo'])
-def handle_photo(message):
-    bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"🔔 Новый чек от {message.chat.id}")
-    bot.reply_to(message, "✅ Чек получен, ожидайте!")
-
-if __name__ == '__main__':
-    Thread(target=run).start()
-    bot.infinity_polling()
+        # Все 23 пака
+        packs = [("60 UC", "buy_60"), ("120 UC", "buy_120"), ("180 UC", "buy_180"), ("325 UC", "buy_325"), 
+                 ("385 UC", "buy_385"), ("660 UC", "buy_660"), ("720 UC", "buy_720"), ("985 UC", "buy_985"), 
+                 ("1045 UC", "buy_1045"), ("1320 UC", "buy_1320"), ("1440 UC", "buy_1440"), ("1800 UC", "buy_1800"), 
+                 ("1920 UC", "buy_1920"), ("2125 UC", "buy_2125"), ("2460 UC", "buy_2460"), ("3120 UC", "buy_3120"), 
+                 ("3850 UC", "buy_3850"), ("4510 UC", "buy_4510"), ("5650 UC", "buy_5650"), ("8100 UC", "buy_
