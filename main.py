@@ -17,7 +17,10 @@ user_orders = {}
 def home(): return "Бот работает!"
 
 @app.route('/index.html')
-def serve_html(): return send_from_directory('.', 'index.html')
+def serve_html():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(base_dir, 'index.html')
+
 
 def run_server():
     port = int(os.environ.get("PORT", 8080))
