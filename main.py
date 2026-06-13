@@ -10,14 +10,14 @@ ADMIN_ID = "7676835960"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# СЛОВАРЬ ЦЕН: Вы можете изменить любую цену прямо здесь
+# СЛОВАРЬ ЦЕН: Обновлено согласно твоему прайс-листу в гривнах
 PACKS = {
-    "60": "150 ₽", "120": "300 ₽", "180": "450 ₽", "325": "750 ₽", 
-    "385": "900 ₽", "660": "1500 ₽", "720": "1650 ₽", "985": "2200 ₽", 
-    "1045": "2350 ₽", "1320": "2900 ₽", "1440": "3150 ₽", "1800": "3900 ₽", 
-    "1920": "4150 ₽", "2125": "4500 ₽", "2460": "5200 ₽", "3120": "6500 ₽", 
-    "3850": "7900 ₽", "4510": "9200 ₽", "5650": "11500 ₽", "8100": "15900 ₽", 
-    "9900": "19500 ₽", "11950": "23500 ₽", "16200": "31900 ₽"
+    "60": "41 ₴", "120": "82 ₴", "180": "123 ₴", "325": "215 ₴", 
+    "385": "250 ₴", "660": "400 ₴", "720": "440 ₴", "985": "615 ₴", 
+    "1045": "655 ₴", "1320": "790 ₴", "1440": "870 ₴", "1800": "1.020 ₴", 
+    "1920": "1.100 ₴", "2125": "1.205 ₴", "2460": "1.390 ₴", "3120": "1.785 ₴", 
+    "3850": "2.000 ₴", "4510": "2.380 ₴", "5650": "3.030 ₴", "8100": "3.900 ₴", 
+    "9900": "4.920 ₴", "11950": "5.900 ₴", "16200": "7.800 ₴"
 }
 
 waiting_for_id = {}
@@ -53,7 +53,7 @@ def callback_query(call):
     chat_id = call.message.chat.id
     bot.answer_callback_query(call.id)
     
-    # 1. Меню выбора паков (теперь с ценами)
+    # 1. Меню выбора паков (с твоими ценами)
     if call.data == "buy_menu":
         markup = types.InlineKeyboardMarkup(row_width=2)
         buttons = []
@@ -169,7 +169,6 @@ def handle_photo(message):
         admin_markup.row(types.InlineKeyboardButton("✅ Заказ выполнен", callback_data=f"done_{message.chat.id}"))
         admin_markup.row(types.InlineKeyboardButton("❌ Отклонить (Неверная сумма)", callback_data=f"reject_{message.chat.id}"))
         
-        # Передаем админу Пак, Сумму и ID
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
                        caption=f"🔔 НОВЫЙ ЗАКАЗ!\nКлиент: @{message.from_user.username or message.chat.id}\nID: {data['id']}\nПак: {data['pack']} UC\nСумма к получению: {data['price']}",
                        reply_markup=admin_markup)
@@ -177,6 +176,6 @@ def handle_photo(message):
         del waiting_for_id[message.chat.id]
 
 if __name__ == '__main__':
-    init_db() # Создаем базу данных при запуске
+    init_db() 
     Thread(target=run_server, daemon=True).start()
     bot.infinity_polling()
