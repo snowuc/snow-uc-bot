@@ -19,7 +19,9 @@ PACKS = {
     "9900": "4.920 ₴", "11950": "5.900 ₴", "16200": "7.800 ₴"
 }
 
-waiting_for_id = {}
+# Словари состояний
+waiting_for_id = {}          # Для процесса покупки
+changing_profile_id = {}     # Для смены ID в профиле
 
 def init_db():
     conn = sqlite3.connect("shop.db")
@@ -33,10 +35,15 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Функция для создания Главного меню (чтобы не дублировать код)
+# Красивое главное меню с новыми кнопками
 def main_menu_markup():
-    markup = types.InlineKeyboardMarkup()
+    markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(types.InlineKeyboardButton("🛒 Купить UC", callback_data="buy_menu"))
+    markup.add(
+        types.InlineKeyboardButton("👤 Мой профиль", callback_data="profile"),
+        types.InlineKeyboardButton("ℹ️ FAQ", callback_data="faq")
+    )
+    markup.add(types.InlineKeyboardButton("👨‍💻 Поддержка", callback_data="support"))
     return markup
 
 @app.route('/')
@@ -55,22 +62,57 @@ def callback_query(call):
     chat_id = call.message.chat.id
     bot.answer_callback_query(call.id)
     
-    # Возврат в главное меню по кнопке
+    # --- НАВИГАЦИЯ ---
     if call.data == "to_main_menu":
+        if chat_id in changing_profile_id: del changing_profile_id[chat_id]
         bot.edit_message_text("👋 Добро пожаловать в SNOW UC SHOP!", chat_id, call.message.message_id, reply_markup=main_menu_markup())
 
-    # 1. Меню выбора паков
+    # --- ИНФОРМАЦИЯ И ПОДДЕРЖКА ---
+    elif call.data == "faq":
+        text = ("ℹ️ <b>Информация и FAQ</b>\n\n"
+                "⏱ <b>Время доставки:</b> от 5 до 15 минут после отправки чека.\n"
+                "🛡 <b>Гарантии:</b> Мы работаем честно и дорожим репутацией. UC пополняются строго по официальным каналам.\n"
+                "🕒 <b>График работы:</b> Ежедневно без выходных.")
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 В главное меню", callback_data="to_main_menu"))
+        bot.edit_message_text(text, chat_id, call.message.message_id, parse_mode="HTML", reply_markup=markup)
+
+    elif call.data == "support":
+        # ВАЖНО: Замени @твой_ник_тут на свой реальный юзернейм!
+        text = ("👨‍💻 <b>Поддержка</b>\n\n"
+                "Если у вас возникли вопросы, задерживается оплата или нужен индивидуальный заказ, пишите администратору:\n\n"
+                "👉 <b>@твой_ник_тут</b>")
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 В главное меню", callback_data="to_main_menu"))
+        bot.edit_message_text(text, chat_id, call.message.message_id, parse_mode="HTML", reply_markup=markup)
+
+    # --- ПРОФИЛЬ ---
+    elif call.data == "profile":
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT game_id FROM users WHERE chat_id = ?", (str(chat_id),))
+        row = cursor.fetchone()
+        conn.close()
+        
+        saved_id = row[0] if row else "❌ Не указан"
+        
+        text = f"👤 <b>Ваш профиль</b>\n\n🆔 Игровой ID: <code>{saved_id}</code>\n\n<i>Здесь будет отображаться статистика ваших покупок.</i>"
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("✏️ Изменить ID", callback_data="profile_change_id"))
+        markup.add(types.InlineKeyboardButton("🔙 В главное меню", callback_data="to_main_menu"))
+        bot.edit_message_text(text, chat_id, call.message.message_id, parse_mode="HTML", reply_markup=markup)
+
+    elif call.data == "profile_change_id":
+        changing_profile_id[chat_id] = True
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 Отмена", callback_data="profile"))
+        bot.edit_message_text("✏️ Введите ваш новый игровой ID (начинается на 5):", chat_id, call.message.message_id, reply_markup=markup)
+
+    # --- ПОКУПКА ---
     elif call.data == "buy_menu":
         markup = types.InlineKeyboardMarkup(row_width=2)
-        buttons = []
-        for uc, price in PACKS.items():
-            buttons.append(types.InlineKeyboardButton(f"{uc} UC — {price}", callback_data=f"pack_{uc}"))
+        buttons = [types.InlineKeyboardButton(f"{uc} UC — {price}", callback_data=f"pack_{uc}") for uc, price in PACKS.items()]
         markup.add(*buttons)
-        # Добавляем кнопку возврата в самое начало, если передумал покупать
         markup.row(types.InlineKeyboardButton("🔙 В главное меню", callback_data="to_main_menu"))
         bot.edit_message_text("💎 Выберите пак и цену:", chat_id, call.message.message_id, reply_markup=markup)
     
-    # 2. Клик по паку -> Проверка сохраненного ID
     elif call.data.startswith("pack_"):
         pack_value = call.data.split("_")[1]
         price_value = PACKS.get(pack_value, "0")
@@ -85,18 +127,16 @@ def callback_query(call):
         if row and row[0]:
             saved_id = row[0]
             markup = types.InlineKeyboardMarkup()
-            markup.row(types.InlineKeyboardButton(f"✅ Да, использовать ID: {saved_id}", callback_data="use_saved_id"))
+            markup.row(types.InlineKeyboardButton(f"✅ Использовать ID: {saved_id}", callback_data="use_saved_id"))
             markup.row(types.InlineKeyboardButton("✏️ Ввести другой ID", callback_data="enter_new_id"))
             markup.row(types.InlineKeyboardButton("🔙 Отмена", callback_data="buy_menu"))
-            bot.edit_message_text(f"🛍 Выбрано: {pack_value} UC за {price_value}.\n\nУ вас есть сохраненный ID: <code>{saved_id}</code>. Использовать его?", 
+            bot.edit_message_text(f"🛍 Выбрано: {pack_value} UC за {price_value}.\n\nСохраненный ID: <code>{saved_id}</code>. Использовать его?", 
                                    chat_id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
         else:
-            back_markup = types.InlineKeyboardMarkup()
-            back_markup.add(types.InlineKeyboardButton("🔙 Назад к пакам", callback_data="buy_menu"))
+            back_markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 Назад к пакам", callback_data="buy_menu"))
             bot.edit_message_text(f"✅ Выбрано: {pack_value} UC за {price_value}.\n\nВведите ваш игровой ID (начинается на 5):", 
                                    chat_id, call.message.message_id, reply_markup=back_markup)
 
-    # 2.1 Клиент выбрал использовать старый ID
     elif call.data == "use_saved_id":
         conn = sqlite3.connect("shop.db")
         cursor = conn.cursor()
@@ -110,54 +150,54 @@ def callback_query(call):
         markup.row(types.InlineKeyboardButton("✅ Подтвердить оплату", callback_data="confirm"))
         markup.row(types.InlineKeyboardButton("🔙 Назад", callback_data="buy_menu"))
         bot.delete_message(chat_id, call.message.message_id)
-        
-        try:
-            bot.send_photo(chat_id, "https://raw.githubusercontent.com/snowuc/snow-uc-bot/main/IMG_20260612_220910_235.jpg", 
-                           caption=f"Ваш ID: {saved_id}. Верно?", reply_markup=markup)
-        except Exception:
-            bot.send_message(chat_id, f"ID: {saved_id}. Нажмите кнопку для оплаты:", reply_markup=markup)
+        bot.send_photo(chat_id, "https://raw.githubusercontent.com/snowuc/snow-uc-bot/main/IMG_20260612_220910_235.jpg", 
+                       caption=f"Ваш ID: {saved_id}. Верно?", reply_markup=markup)
 
-    # 2.2 Клиент хочет ввести новый ID вместо старого
     elif call.data == "enter_new_id":
-        if chat_id in waiting_for_id and "id" in waiting_for_id[chat_id]:
-            del waiting_for_id[chat_id]["id"]
-        back_markup = types.InlineKeyboardMarkup()
-        back_markup.add(types.InlineKeyboardButton("🔙 Назад к пакам", callback_data="buy_menu"))
+        if chat_id in waiting_for_id and "id" in waiting_for_id[chat_id]: del waiting_for_id[chat_id]["id"]
+        back_markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 Назад к пакам", callback_data="buy_menu"))
         bot.edit_message_text("Введите новый игровой ID (начинается на 5):", chat_id, call.message.message_id, reply_markup=back_markup)
 
-    # 3. Подтверждение перехода к оплате
     elif call.data == "confirm":
         bot.delete_message(chat_id, call.message.message_id)
-        bot.send_message(chat_id, "💳 Карта: <code>5168 7500 0000 0000</code>.\n\n📸 Пришлите скриншот чека.", parse_mode="HTML")
+        bot.send_message(chat_id, "💳 Карта: <code>5168 7500 0000 0000</code>.\n\n📸 Пришлите <b>ФОТОГРАФИЮ (скриншот)</b> чека.", parse_mode="HTML")
 
-    # --- АДМИН: ВЫПОЛНЕНО ---
+    # --- АДМИН ПАНЕЛЬ ---
     elif call.data.startswith("done_"):
         if str(chat_id) == ADMIN_ID: 
             client_id = call.data.split("_")[1]
             try:
-                # Создаем кнопку "Купить еще" для клиента, чтобы он вернулся в магазин
-                client_markup = types.InlineKeyboardMarkup()
-                client_markup.add(types.InlineKeyboardButton("🛒 Купить еще UC", callback_data="buy_menu"))
-                
-                bot.send_message(client_id, "✅ Ваш заказ успешно выполнен! UC начислены на ваш аккаунт. Спасибо за покупку!", reply_markup=client_markup)
+                client_markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🛒 Купить еще UC", callback_data="buy_menu"))
+                bot.send_message(client_id, "✅ Ваш заказ успешно выполнен! UC начислены. Спасибо за покупку!", reply_markup=client_markup)
                 bot.edit_message_caption(caption=call.message.caption + "\n\n✅ СТАТУС: ВЫПОЛНЕНО", chat_id=chat_id, message_id=call.message.message_id)
             except Exception:
-                bot.send_message(ADMIN_ID, "❌ Ошибка отправки пользователю.")
+                bot.send_message(ADMIN_ID, "❌ Ошибка: пользователь заблокировал бота.")
 
-    # --- АДМИН: ОТКЛОНЕНО ---
     elif call.data.startswith("reject_"):
         if str(chat_id) == ADMIN_ID:
             client_id = call.data.split("_")[1]
             try:
-                # Создаем кнопку перезапуска для клиента
-                client_markup = types.InlineKeyboardMarkup()
-                client_markup.add(types.InlineKeyboardButton("🔄 Оформить заново", callback_data="buy_menu"))
-                
-                bot.send_message(client_id, "❌ Ваш заказ отклонен.\n\nПричина: Неверная сумма или недействительный чек.\nПожалуйста, проверьте данные и оформите заказ заново.", reply_markup=client_markup)
-                bot.edit_message_caption(caption=call.message.caption + "\n\n❌ СТАТУС: ОТКЛОНЕН (Неверная сумма)", chat_id=chat_id, message_id=call.message.message_id)
+                client_markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔄 Оформить заново", callback_data="buy_menu"))
+                bot.send_message(client_id, "❌ Ваш заказ отклонен.\nПричина: Неверная сумма или недействительный чек.", reply_markup=client_markup)
+                bot.edit_message_caption(caption=call.message.caption + "\n\n❌ СТАТУС: ОТКЛОНЕН", chat_id=chat_id, message_id=call.message.message_id)
             except Exception:
-                bot.send_message(ADMIN_ID, "❌ Ошибка отправки пользователю.")
+                bot.send_message(ADMIN_ID, "❌ Ошибка: пользователь заблокировал бота.")
 
+# Обработка смены ID в профиле
+@bot.message_handler(func=lambda m: m.chat.id in changing_profile_id)
+def handle_profile_id_change(message):
+    if message.text.startswith('5'):
+        conn = sqlite3.connect("shop.db")
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO users (chat_id, game_id) VALUES (?, ?)", (str(message.chat.id), str(message.text)))
+        conn.commit()
+        conn.close()
+        del changing_profile_id[message.chat.id]
+        bot.reply_to(message, f"✅ Ваш ID успешно сохранен: {message.text}", reply_markup=main_menu_markup())
+    else:
+        bot.reply_to(message, "❌ Ошибка: ID должен начинаться с 5.")
+
+# Обработка ввода ID при покупке
 @bot.message_handler(func=lambda m: m.chat.id in waiting_for_id and "id" not in waiting_for_id[m.chat.id])
 def handle_id(message):
     if message.text.startswith('5'):
@@ -173,36 +213,33 @@ def handle_id(message):
         markup = types.InlineKeyboardMarkup()
         markup.row(types.InlineKeyboardButton("✅ Подтвердить оплату", callback_data="confirm"))
         markup.row(types.InlineKeyboardButton("🔙 Изменить пак", callback_data="buy_menu"))
-        
-        try:
-            bot.send_photo(message.chat.id, "https://raw.githubusercontent.com/snowuc/snow-uc-bot/main/IMG_20260612_220910_235.jpg", 
-                           caption=f"Ваш ID: {game_id}. Верно?", reply_markup=markup)
-        except Exception:
-            bot.send_message(message.chat.id, f"ID: {game_id}. Нажмите кнопку для оплаты:", reply_markup=markup)
+        bot.send_photo(message.chat.id, "https://raw.githubusercontent.com/snowuc/snow-uc-bot/main/IMG_20260612_220910_235.jpg", 
+                       caption=f"Ваш ID: {game_id}. Верно?", reply_markup=markup)
     else:
-        # Если ввели неверный ID, тоже даем кнопку возврата
-        back_markup = types.InlineKeyboardMarkup()
-        back_markup.add(types.InlineKeyboardButton("🔙 Назад к пакам", callback_data="buy_menu"))
+        back_markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 Назад к пакам", callback_data="buy_menu"))
         bot.reply_to(message, "❌ Ошибка: ID должен начинаться с 5.", reply_markup=back_markup)
 
+# Защита от дурака: если клиент шлет текст/файл вместо чека
+@bot.message_handler(content_types=['text', 'document', 'video', 'sticker', 'audio', 'voice', 'animation'], 
+                     func=lambda m: m.chat.id in waiting_for_id and "id" in waiting_for_id[m.chat.id])
+def handle_wrong_receipt(message):
+    bot.reply_to(message, "❌ Пожалуйста, отправьте именно **ФОТОГРАФИЮ** (скриншот) чека. Бот не принимает текст или файлы.", parse_mode="Markdown")
+
+# Правильная обработка фото-чека
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     if message.chat.id in waiting_for_id and "id" in waiting_for_id[message.chat.id]:
         data = waiting_for_id[message.chat.id]
         
-        # Кнопки для тебя (админа)
         admin_markup = types.InlineKeyboardMarkup()
         admin_markup.row(types.InlineKeyboardButton("✅ Заказ выполнен", callback_data=f"done_{message.chat.id}"))
-        admin_markup.row(types.InlineKeyboardButton("❌ Отклонить (Неверная сумма)", callback_data=f"reject_{message.chat.id}"))
+        admin_markup.row(types.InlineKeyboardButton("❌ Отклонить", callback_data=f"reject_{message.chat.id}"))
         
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
-                       caption=f"🔔 НОВЫЙ ЗАКАЗ!\nКлиент: @{message.from_user.username or message.chat.id}\nID: {data['id']}\nПак: {data['pack']} UC\nСумма к получению: {data['price']}",
+                       caption=f"🔔 НОВЫЙ ЗАКАЗ!\nКлиент: @{message.from_user.username or message.chat.id}\nID: {data['id']}\nПак: {data['pack']} UC\nСумма: {data['price']}",
                        reply_markup=admin_markup)
         
-        # Кнопка для клиента (возврат в меню сразу после отправки чека)
-        client_menu_markup = types.InlineKeyboardMarkup()
-        client_menu_markup.add(types.InlineKeyboardButton("🔙 В главное меню", callback_data="to_main_menu"))
-        
+        client_menu_markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("🔙 В главное меню", callback_data="to_main_menu"))
         bot.reply_to(message, "✅ Чек получен! Ожидайте зачисления.", reply_markup=client_menu_markup)
         del waiting_for_id[message.chat.id]
 
