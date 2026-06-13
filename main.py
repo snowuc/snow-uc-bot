@@ -45,15 +45,12 @@ def callback_query(call):
         bot.delete_message(chat_id, call.message.message_id)
         bot.send_message(chat_id, "💳 Карта: <code>5168 7500 0000 0000</code>.\n\n📸 Пришлите скриншот чека.", parse_mode="HTML")
 
-    # --- НОВАЯ ЛОГИКА ДЛЯ АДМИНА ---
+    # --- ЛОГИКА ДЛЯ АДМИНА ---
     elif call.data.startswith("done_"):
-        # Проверяем, что нажал именно ты (админ)
         if str(chat_id) == ADMIN_ID: 
-            client_id = call.data.split("_")[1] # Достаем ID чата клиента из кнопки
+            client_id = call.data.split("_")[1]
             try:
-                # Отправляем сообщение клиенту
                 bot.send_message(client_id, "✅ Ваш заказ успешно выполнен! UC начислены на ваш аккаунт. Спасибо за покупку!")
-                # Меняем текст под чеком у тебя, убирая кнопку
                 bot.edit_message_caption(caption=call.message.caption + "\n\n✅ СТАТУС: ВЫПОЛНЕНО", 
                                          chat_id=chat_id, 
                                          message_id=call.message.message_id)
@@ -80,9 +77,8 @@ def handle_photo(message):
     if message.chat.id in waiting_for_id and "id" in waiting_for_id[message.chat.id]:
         data = waiting_for_id[message.chat.id]
         
-        # --- НОВАЯ КНОПКА ДЛЯ АДМИНА ---
+        # --- КНОПКА ДЛЯ АДМИНА ---
         admin_markup = types.InlineKeyboardMarkup()
-        # В кнопку "вшиваем" chat_id клиента, чтобы бот знал, кому отправлять ответ
         admin_markup.add(types.InlineKeyboardButton("✅ Заказ выполнен", callback_data=f"done_{message.chat.id}"))
         
         bot.send_photo(ADMIN_ID, message.photo[-1].file_id, 
